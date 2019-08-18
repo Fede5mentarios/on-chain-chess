@@ -1,9 +1,8 @@
-/* global describe, it, beforeEach */
-import { Chess, web3 } from '../contracts/Chess.sol';
-import { gameStateDisplay , Plan } from './utils';
+/** global describe, it, beforeEach */
+const Chess = artifacts.require('../contracts/Chess.sol');
 
-
-let {assert} = require('chai');
+const { assert } = require('chai');
+const { gameStateDisplay, Plan } = require('./utils');
 
 const defaultBoard = [
   -4,
@@ -271,13 +270,12 @@ function leftPad(nr, n, str) {
 }
 
 function solSha3(...args) {
-  args = args.map(arg => {
+  const newArgs = args.map(arg => {
     if (typeof arg === 'string') {
       if (arg.substring(0, 2) === '0x') {
         return arg.slice(2);
-      } 
-        return web3.toHex(arg).slice(2);
-      
+      }
+      return web3.toHex(arg).slice(2);
     }
 
     if (typeof arg === 'number') {
@@ -285,14 +283,11 @@ function solSha3(...args) {
         return leftPad((arg >>> 0).toString(16), 64, 'F');
       }
       return leftPad(arg.toString(16), 64, 0);
-    } else {
-      return '';
     }
+    return '';
   });
 
-  args = args.join('');
-
-  return '0x' + web3.sha3(args, { encoding: 'hex' });
+  return '0x' + web3.sha3(newArgs.join(''), { encoding: 'hex' });
 }
 
 function adjustPot(value) {
@@ -303,14 +298,14 @@ describe('Chess contract', function() {
   this.timeout(60000);
   this.slow(500);
 
-  let testGames = [];
+  const testGames = [];
   const player1 = web3.eth.accounts[0];
   const player2 = web3.eth.accounts[1];
   const player3 = web3.eth.accounts[2];
 
   // Remove this for CI/deploy, otherwise the test never finishes
 
-  /*var debugFilter = Chess.DebugInts({});
+  /* var debugFilter = Chess.DebugInts({});
   debugFilter.watch(function(error, result){
     console.log(result.args.message,
                 result.args.value1.toNumber(),
@@ -322,7 +317,7 @@ describe('Chess contract', function() {
   describe('initGame()', function() {
     it('should initialize a game with player1 playing white with 1M Wei', function(done) {
       // Watch for event from contract to check if it worked
-      let filter = Chess.GameInitialized({});
+      const filter = Chess.GameInitialized({});
       filter.watch(function(error, result) {
         testGames[0] = result.args.gameId;
         assert.isOk(result.args.gameId);
@@ -338,7 +333,7 @@ describe('Chess contract', function() {
     });
 
     it('should broadcast the initial game state', function(done) {
-      let eventGamestate = Chess.GameStateChanged({});
+      const eventGamestate = Chess.GameStateChanged({});
       eventGamestate.watch(function(error, result) {
         const state = result.args.state.map(n => n.toNumber());
         assert.deepEqual(gameStateDisplay(defaultBoard), gameStateDisplay(state));
@@ -351,7 +346,7 @@ describe('Chess contract', function() {
 
     it('should initialize a game with player1 playing black', function(done) {
       // Watch for event from contract to check if it worked
-      let filter = Chess.GameInitialized({});
+      const filter = Chess.GameInitialized({});
       filter.watch(function(error, result) {
         testGames[1] = result.args.gameId;
         assert.isOk(result.args.gameId);
@@ -398,7 +393,7 @@ describe('Chess contract', function() {
       }, Error);
 
       // Watch for event from contract to check if it worked
-      let filter = Chess.GameJoined({ gameId: testGames[0] });
+      const filter = Chess.GameJoined({ gameId: testGames[0] });
       filter.watch(function(error, result) {
         assert.equal(testGames[0], result.args.gameId);
         assert.equal(player2, result.args.player2);
@@ -423,7 +418,7 @@ describe('Chess contract', function() {
       }, Error);
 
       // Watch for event from contract to check if it worked
-      let filter = Chess.GameJoined({ gameId: testGames[1] });
+      const filter = Chess.GameJoined({ gameId: testGames[1] });
       filter.watch(function(error, result) {
         assert.equal(testGames[1], result.args.gameId);
         assert.equal(player2, result.args.playerWhite);
@@ -452,13 +447,13 @@ describe('Chess contract', function() {
     let gameId;
     it('should initialize a new game and join both players', function(done) {
       Chess.initGame('Bob', true, 10, { from: player1, gas: 2000000, value: 1000000 });
-      let filter = Chess.GameInitialized({});
+      const filter = Chess.GameInitialized({});
       filter.watch(function(error, result) {
         gameId = result.args.gameId;
         filter.stopWatching();
 
         Chess.joinGame(gameId, 'Bob', { from: player2, gas: 500000, value: adjustPot(1000000) });
-        let filter2 = Chess.GameJoined({ gameId });
+        const filter2 = Chess.GameJoined({ gameId });
         filter2.watch(function() {
           filter2.stopWatching();
           done();
@@ -474,7 +469,7 @@ describe('Chess contract', function() {
 
     it('should allow surrender from P1 and declare P2 as winner', function(done) {
       Chess.surrender(gameId, { from: player1, gas: 500000 });
-      let filter = Chess.GameEnded({ gameId });
+      const filter = Chess.GameEnded({ gameId });
       filter.watch(function() {
         assert.equal(player2, Chess.games(gameId)[5]);
         filter.stopWatching();
@@ -502,7 +497,7 @@ describe('Chess contract', function() {
     let gameId1;
     beforeEach(function(done) {
       // Watch for event from contract to check if it worked
-      let filter = Chess.GameInitialized({});
+      const filter = Chess.GameInitialized({});
       filter.watch((error, result) => {
         gameId1 = result.args.gameId;
         assert.isOk(result.args.gameId);
@@ -539,7 +534,7 @@ describe('Chess contract', function() {
       };
 
       // Watch for event from contract to check if the Move worked
-      let filter = Chess.Move({ gameId: gameId1 });
+      const filter = Chess.Move({ gameId: gameId1 });
       filter.watch(function(error, result) {
         assert.equal(player1, result.args.player);
         assert.equal(100, result.args.fromIndex);
@@ -557,7 +552,7 @@ describe('Chess contract', function() {
       expectedState[56] = -1; // next player black
       expectedState[8] = 1 >> 7; // updated move count
       expectedState[9] = 1 % 128; // updated move count
-      let filter2 = Chess.GameStateChanged({ gameId: gameId1 });
+      const filter2 = Chess.GameStateChanged({ gameId: gameId1 });
       filter2.watch(function(error, result) {
         assert.deepEqual(gameStateDisplay(expectedState), gameStateDisplay(result.args.state));
         filter2.stopWatching(); // Need to remove filter again
@@ -1148,7 +1143,8 @@ describe('Chess contract', function() {
   });
 
   describe('closePlayerGame()', function() {
-    let gameId; let gameId2;
+    let gameId;
+    let gameId2;
     it('should initialize a game with 1 player only', function(done) {
       Chess.initGame('Alice', true, 10, { from: player1, gas: 2000000, value: 1000000 });
 
@@ -1335,7 +1331,7 @@ describe('Chess contract', function() {
     let gameId;
     beforeEach(function(done) {
       // Watch for event from contract to check if it worked
-      let filter = Chess.GameInitialized({});
+      const filter = Chess.GameInitialized({});
       filter.watch((error, result) => {
         gameId = result.args.gameId;
         assert.isOk(result.args.gameId);
@@ -1676,7 +1672,7 @@ describe('Chess contract', function() {
         };
 
         // Watch for event from contract to check if the Move worked
-        let filter = Chess.Move({ gameId: testGames[0] });
+        const filter = Chess.Move({ gameId: testGames[0] });
         filter.watch(function(error, result) {
           assert.equal(player1, result.args.player);
           assert.equal(100, result.args.fromIndex);
@@ -1693,7 +1689,7 @@ describe('Chess contract', function() {
         expectedState[56] = -1; // next player black
         expectedState[8] = 1 >> 7; // updated move count
         expectedState[9] = 1 % 128; // updated move count
-        let filter2 = Chess.GameStateChanged({ gameId: testGames[0] });
+        const filter2 = Chess.GameStateChanged({ gameId: testGames[0] });
         filter2.watch(function(error, result) {
           assert.deepEqual(gameStateDisplay(expectedState), gameStateDisplay(result.args.state));
           filter2.stopWatching(); // Need to remove filter again
@@ -1740,7 +1736,7 @@ describe('Chess contract', function() {
         };
 
         Chess.setGameState(testGames[0], newState, player1, { from: player1, gas: 2000000 });
-        let filter = Chess.GameStateChanged({ gameId: testGames[0] });
+        const filter = Chess.GameStateChanged({ gameId: testGames[0] });
         filter.watch(function(error, result) {
           // First event, test that it worked by sending a Move
           if (numDone === 0) {
@@ -1773,7 +1769,7 @@ describe('Chess contract', function() {
         Chess.initGame('Alice', true, 10, { from: player1, gas: 2000000 });
 
         // Watch for event from contract to check if it worked
-        let filter = Chess.GameInitialized({});
+        const filter = Chess.GameInitialized({});
         filter.watch((error, result) => {
           gameId = result.args.gameId;
           assert.isOk(result.args.gameId);
@@ -2010,7 +2006,7 @@ describe('Chess contract', function() {
             Chess.move(gameId, 52, 35, { from: player1, gas: 500000 });
           });
           // check if pawn was removed
-          let filter = Chess.GameStateChanged({ gameId });
+          const filter = Chess.GameStateChanged({ gameId });
           filter.watch((error, result) => {
             assert.equal(0, result.args.state[51]);
             filter.stopWatching();
@@ -2029,7 +2025,7 @@ describe('Chess contract', function() {
           state[98] = -1; // B_P
 
           // Watch for event from contract to check if it worked
-          let filter = Chess.GameStateChanged({ gameId });
+          const filter = Chess.GameStateChanged({ gameId });
           filter.watch((error, result) => {
             assert.equal('0', result.args.state[18].toString());
             assert.equal('5', result.args.state[2].toString());

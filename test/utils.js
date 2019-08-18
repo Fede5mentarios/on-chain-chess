@@ -1,18 +1,20 @@
-export const gameStateDisplay = (state) => {
-  var rows = [];
-  for (var i = 0; i < 8; i++) {
-    var row = [];
-    for (var j = 0; j < 16; j++) {
-      row.push(('   ' + state[i*16+j].toString(10)).slice(-3));
+const { modules } = require('web3');
+
+const { assert } = require('chai');
+
+const gameStateDisplay = state => {
+  const rows = [];
+  for (let i = 0; i < 8; i++) {
+    const row = [];
+    for (let j = 0; j < 16; j++) {
+      row.push(('   ' + state[i * 16 + j].toString(10)).slice(-3));
     }
     rows.push(row.join(' '));
   }
   return rows.join('\n');
 };
 
-var assert = require('chai').assert;
-
-export class Plan {
+class Plan {
   constructor(count, done) {
     this.done = done;
     this.count = count;
@@ -29,3 +31,8 @@ export class Plan {
     }
   }
 }
+
+modules.export = {
+  gameStateDisplay,
+  Plan
+};

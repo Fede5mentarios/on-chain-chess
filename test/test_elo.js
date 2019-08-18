@@ -1,9 +1,9 @@
-/* global describe, it */
-import { EloTest, web3 } from '../contracts/EloTest.sol';
-import { Plan } from './utils.js';
+/** global describe, it */
+const { assert } = require('chai');
+const async = require('async');
 
-var assert = require('chai').assert;
-var async = require('async');
+const EloTest = artifacts.require('../contracts/EloTest.sol');
+const { Plan } = require('./utils.js');
 
 describe('ELO library', function() {
   this.timeout(50000);
@@ -16,8 +16,8 @@ describe('ELO library', function() {
     it('correctly initialize scores with floor and record win of P1', function(done) {
       EloTest.recordResult(player1, player2, player1, { gas: 500000 });
 
-      let filter = EloTest.EloScoreUpdate({});
-      let plan = new Plan(2, () => {
+      const filter = EloTest.EloScoreUpdate({});
+      const plan = new Plan(2, () => {
         filter.stopWatching();
         done();
       });
@@ -33,7 +33,7 @@ describe('ELO library', function() {
     });
 
     it('correctly record a number of games', function(done) {
-      let results = [
+      const results = [
         // winner, new score player 1, new score player 2
         // Start: 110, 100
         [player1, 120, 100], // +10, -10   (floored at 100)
@@ -60,22 +60,22 @@ describe('ELO library', function() {
       async.mapSeries(
         results,
         (item, callback) => {
-          let [winner, score1, score2] = item;
+          const [winner, score1, score2] = item;
           EloTest.recordResult(player1, player2, winner, { gas: 500000 });
-          let filter = EloTest.EloScoreUpdate({});
-          let plan = new Plan(2, () => {
+          const filter = EloTest.EloScoreUpdate({});
+          const plan = new Plan(2, () => {
             filter.stopWatching();
             callback();
           });
           filter.watch(function(error, result) {
             if (result.args.player === player1) {
-              let resultText = winner === player1 ? 'winning' : !winner ? 'draw' : 'losing';
-              let msg = 'After ' + resultText + ', player 1 score should be ' + score1;
+              const resultText = winner === player1 ? 'winning' : !winner ? 'draw' : 'losing';
+              const msg = 'After ' + resultText + ', player 1 score should be ' + score1;
               assert.equal(score1, result.args.score.toNumber(), msg);
             }
             if (result.args.player === player2) {
-              let resultText = winner === player2 ? 'winning' : !winner ? 'draw' : 'losing';
-              let msg = 'After ' + resultText + ', player 2 score should be ' + score2;
+              const resultText = winner === player2 ? 'winning' : !winner ? 'draw' : 'losing';
+              const msg = 'After ' + resultText + ', player 2 score should be ' + score2;
               assert.equal(score2, result.args.score.toNumber(), msg);
             }
             plan.ok();

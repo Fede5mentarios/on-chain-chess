@@ -19,6 +19,8 @@
   "license": "MIT",
   "scripts": {
     "test": "rm -rf build && npm run truffle-compile && scripts/test.sh",
+    "fast-test": "scripts/test.sh",
+    "full-test": "npm run eslint && npm run solium && npm run test",
     "debugtx": "./scripts/debugtx $1",
     "eslint": "eslint test/ --ext .js",
     "truffle-test": "./node_modules/truffle/build/cli.bundled.js test",
@@ -28,8 +30,7 @@
     "block-utils": "scripts/mine_blocks.sh",
     "truffle-compile": "truffle compile --all",
     "truffle-migrate-testnet": "truffle migrate --network rskTestnet --reset",
-    "truffle-migrate-dev": "rm zos.dev-*.json; rm -r build/contracts; truffle migrate --network development --reset",
-    "full-test": "npm run eslint && npm run solium && npm run test"
+    "truffle-migrate-dev": "rm zos.dev-*.json; rm -r build/contracts; truffle migrate --network development --reset"
   },
   "plugins": [
     "mocha"
@@ -44,14 +45,8 @@
     "chess"
   ],
   "dependencies": {
-    "eslint-plugin-jsx-a11y": "6.2.3",
-    "eslint-plugin-react": "7.14.3",
-    "eslint-plugin-react-hooks": "1.7.0",
-    "mocha": "6.2.0",
     "openzeppelin-eth": "2.2.0",
-    "openzeppelin-solidity": "2.3.0",
-    "solc": "0.5.11",
-    "solium": "1.2.4"
+    "openzeppelin-solidity": "2.3.0"
   },
   "devDependencies": {
     "abi-decoder": "2.0.1",
@@ -62,6 +57,9 @@
     "chai-as-promised": "7.1.1",
     "chai-bn": "0.1.1",
     "eslint": "6.1.0",
+    "eslint-plugin-jsx-a11y": "6.2.3",
+    "eslint-plugin-react": "7.14.3",
+    "eslint-plugin-react-hooks": "1.7.0",
     "eslint-config-airbnb": "18.0.1",
     "eslint-config-airbnb-base": "13.2.0",
     "eslint-config-prettier": "6.0.0",
@@ -78,7 +76,7 @@
     "openzeppelin-test-helpers": "0.4.0",
     "prettier": "1.18.2",
     "solidity-coverage": "0.6.4",
-    "truffle": "5.0.32",
+    "truffle": "5.0.28",
     "truffle-hdwallet-provider": "1.0.14",
     "zos": "2.3.1",
     "zos-lib": "2.3.1"

@@ -2,7 +2,9 @@ const chunk = require('lodash/chunk');
 
 const allConfig = require('./config');
 
-const TurnBasedGame = artifacts.require('TurnBasedGame');
+const Chess = artifacts.require('Chess');
+const ChessLogic = artifacts.require('ChessLogic');
+const Elo = artifacts.require('ELO');
 
 const MAX_PENDING_TXS = 4;
 
@@ -22,15 +24,17 @@ module.exports = async function(deployer, currentNetwork, [owner]) {
   addresses.push(owner);
 
   console.log('Deploying Contracts and Libraries');
-  await executeBatched([() => deployer.deploy(TurnBasedGame)]);
+  await executeBatched([() => deployer.deploy(ChessLogic), () => deployer.deploy(Elo)]);
 
   console.log('Linking libraries into');
-  await Promise.all([]);
+  await Promise.all([deployer.link(ChessLogic, Chess), deployer.link(Elo, Chess)]);
 
   console.log('Getting contracts');
+  await deployer.deploy(Chess, true);
+
   // deployer.deploy returns undefined. This is not documented in
   // https://www.trufflesuite.com/docs/truffle/getting-started/running-migrations
-  const tbg = await TurnBasedGame.deployed();
+  const chess = await Chess.deployed();
 
   if (currentNetwork === 'development' || currentNetwork === 'coverage') {
     // to run only when testing
@@ -42,6 +46,6 @@ module.exports = async function(deployer, currentNetwork, [owner]) {
   // await Promise.all(addresses.map(address => mintFor(bpro, address)));
 
   console.log({
-    tbgAddress: tbg.address
+    chessAddress: chess.address
   });
 };
