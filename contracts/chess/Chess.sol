@@ -9,13 +9,21 @@ pragma solidity 0.5.10;
  *    https://github.com/Fede5mentarios/on-chain-chess
  */
 
-import "./TurnBasedGame.sol";
+import "../Auth.sol";
+import "../ELO.sol";
+import "../TurnBasedGame.sol";
 import "./ChessLogic.sol";
-import "./Auth.sol";
-import "./ELO.sol";
+import "./ChessState.sol";
 
 contract EventfulChess {
-  event GameInitialized(bytes32 indexed gameId, address indexed player1, string player1Alias, address playerWhite, uint turnTime, uint pot);
+  event GameInitialized(
+    bytes32 indexed gameId,
+    address indexed player1,
+    string player1Alias,
+    address playerWhite,
+    uint turnTime,
+    uint pot
+  );
   event GameJoined(
     bytes32 indexed gameId,
     address indexed player1,
@@ -25,7 +33,10 @@ contract EventfulChess {
     address playerWhite,
     uint pot
   );
-  event GameStateChanged(bytes32 indexed gameId, int8[128] state);
+  event GameStateChanged(
+    bytes32 indexed gameId,
+    int8[128] state
+  );
   event Move(bytes32 indexed gameId, address indexed player, uint256 fromIndex, uint256 toIndex);
   event EloScoreUpdate(address indexed player, uint score);
 }
@@ -33,8 +44,8 @@ contract EventfulChess {
 
 
 contract Chess is Auth, EventfulChess, TurnBasedGame {
-  using ChessLogic for ChessLogic.State;
-  mapping (bytes32 => ChessLogic.State) gameStates;
+  using ChessLogic for ChessState.Data;
+  mapping (bytes32 => ChessState.Data) gameStates;
 
   using ELO for ELO.Scores;
   ELO.Scores eloScores;
@@ -52,7 +63,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     * bool playAsWhite: Pass true or false depending on if the creator will play as white
     */
   function initGame(string memory player1Alias, bool playAsWhite, uint turnTime) public payable returns (bytes32 gameId) {
-    gameId = super.initGame(player1Alias, playAsWhite, turnTime);
+    gameId = super.initGame(player1Alias, turnTime, playAsWhite);
 
     // Setup game state
     int8 nextPlayerColor = int8(1);
@@ -78,7 +89,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     */
   function joinGame(bytes32 _gameId, string memory player2Alias) public payable {
     super.joinGame(_gameId, player2Alias);
-    ChessLogic.State storage gameState = gameStates[_gameId];
+    ChessState.Data storage gameState = gameStates[_gameId];
     Game storage game = games[_gameId];
 
     // If the other player isn't white, player2 will play as white
@@ -127,7 +138,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
   /* The sender claims he has won the game. Starts a timeout. */
   function claimWin(bytes32 _gameId) public notEnded(_gameId) {
     super.claimWin(_gameId);
-    ChessLogic.State storage gameState = gameStates[_gameId];
+    ChessState.Data storage gameState = gameStates[_gameId];
     // get the color of the player that wants to claim win
     int8 otherPlayerColor = gameState.playerWhite == msg.sender ? int8(-1) : int8(1);
 
@@ -150,7 +161,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     */
   function moveFromState(bytes32 _gameId, int8[128] memory state, uint256 fromIndex, uint256 toIndex, bytes memory sigState)
     public notEnded(_gameId) isAPlayer(_gameId, msg.sender) {
-    ChessLogic.State storage gameState = gameStates[_gameId];
+    ChessState.Data storage gameState = gameStates[_gameId];
     Game storage game = games[_gameId];
 
     address opponent = findOpponent(game, msg.sender);
@@ -240,7 +251,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
   }
 
   function move(bytes32 _gameId, address _sender, uint256 fromIndex, uint256 toIndex) internal {
-    ChessLogic.State storage gameState = gameStates[_gameId];
+    ChessState.Data storage gameState = gameStates[_gameId];
     Game storage game = games[_gameId];
 
     if (
@@ -256,19 +267,9 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
 
       require(game.nextPlayer == _sender, "It is not your turn");
 
-      if (game.timeoutState != 0) {
-        game.timeoutState = 0;
-      }
-
+      turnEnded(_gameId, msg.sender);
       // Chess move validation
       gameState.move(fromIndex, toIndex, msg.sender == gameState.playerWhite);
-
-      // Set nextPlayer
-      if (msg.sender == game.player1) {
-        game.nextPlayer = game.player2;
-      } else {
-        game.nextPlayer = game.player1;
-      }
     }
 
     // Send events

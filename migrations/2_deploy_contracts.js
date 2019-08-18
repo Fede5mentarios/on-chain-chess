@@ -2,9 +2,15 @@ const chunk = require('lodash/chunk');
 
 const allConfig = require('./config');
 
-const Chess = artifacts.require('Chess');
+const MathUtils = artifacts.require('MathUtils');
+const MathUtilsTest = artifacts.require('MathUtilsTest');
+const ChessState = artifacts.require('ChessState');
+const ChessMoveValidator = artifacts.require('ChessMoveValidator');
+const ChessMovements = artifacts.require('ChessMovements');
 const ChessLogic = artifacts.require('ChessLogic');
 const Elo = artifacts.require('ELO');
+
+const Chess = artifacts.require('Chess');
 
 const MAX_PENDING_TXS = 4;
 
@@ -24,10 +30,36 @@ module.exports = async function(deployer, currentNetwork, [owner]) {
   addresses.push(owner);
 
   console.log('Deploying Contracts and Libraries');
-  await executeBatched([() => deployer.deploy(ChessLogic), () => deployer.deploy(Elo)]);
+  await executeBatched([
+    () =>
+      deployer
+        .deploy(MathUtils)
+        .then(() => deployer.link(MathUtils, ChessState))
+        .then(() => deployer.deploy(ChessState))
+        .then(() => deployer.link(MathUtils, ChessMoveValidator))
+        .then(() => deployer.link(ChessState, ChessMoveValidator))
+        .then(() => deployer.deploy(ChessMoveValidator))
+        .then(() => deployer.link(MathUtils, ChessMovements))
+        .then(() => deployer.link(ChessState, ChessMovements))
+        .then(() => deployer.link(ChessMoveValidator, ChessMovements))
+        .then(() => deployer.deploy(ChessMovements))
+        .then(() => deployer.link(MathUtils, ChessLogic))
+        .then(() => deployer.link(ChessState, ChessLogic))
+        .then(() => deployer.link(ChessMoveValidator, ChessLogic))
+        .then(() => deployer.link(ChessMovements, ChessLogic))
+        .then(() => deployer.deploy(ChessLogic)),
+    () => deployer.deploy(Elo)
+  ]);
 
   console.log('Linking libraries into');
-  await Promise.all([deployer.link(ChessLogic, Chess), deployer.link(Elo, Chess)]);
+  await Promise.all([
+    deployer.link(MathUtils, Chess),
+    deployer.link(ChessState, Chess),
+    deployer.link(ChessMoveValidator, Chess),
+    deployer.link(ChessMovements, Chess),
+    deployer.link(ChessLogic, Chess),
+    deployer.link(Elo, Chess)
+  ]);
 
   console.log('Getting contracts');
   await deployer.deploy(Chess, true);
@@ -37,7 +69,11 @@ module.exports = async function(deployer, currentNetwork, [owner]) {
   const chess = await Chess.deployed();
 
   if (currentNetwork === 'development' || currentNetwork === 'coverage') {
-    // to run only when testing
+    console.log('Deploying Contracts and Libraries for testing');
+    await deployer
+      .deploy(MathUtils)
+      .then(() => deployer.link(MathUtils, MathUtilsTest))
+      .then(() => deployer.deploy(MathUtilsTest));
   }
 
   console.log('Minting for all the addresses');

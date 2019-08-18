@@ -28,7 +28,7 @@ start_ganache() {
 
   if [ "$SOLIDITY_COVERAGE" = true ]; then
     touch allFiredEvents
-    node_modules/.bin/testrpc-sc --gasLimit 0x1fffffffffffff --port "$ganache_port" "${accounts[@]}" -i 1564754684494 --accounts 10 --defaultBalanceEther 100000000000000000 > /dev/null &
+    node_modules/.bin/testrpc-sc --gasLimit 0x1fffffffffffff --port "$ganache_port" "${accounts[@]}" -i 1564754684494 --accounts 10 > /dev/null &
   else
     node_modules/.bin/ganache-cli --gasLimit 0xfffffffffff "${accounts[@]}" -i 1564754684494 --accounts 10 --defaultBalanceEther 100000000000000000 > /dev/null &
   fi
@@ -47,7 +47,27 @@ ganache-cli --version
 truffle version
 
 if [ "$SOLIDITY_COVERAGE" = true ]; then
+  if [ -e coverage ]; then
+    rm -rf coverage
+  fi
+  if [ -e coverage.json ]; then
+    rm coverage.json
+  fi
+  if [ -e current-coverage.json ]; then
+    echo "Cleanning previous coverage reports...."
+    cp current-coverage.json previous-coverage.json
+    rm current-coverage.json
+  fi
+  echo "Generating new coverage report...."
   node_modules/.bin/solidity-coverage
+  node_modules/.bin/istanbul report --dir=. json-summary
+  cp coverage-summary.json current-coverage.json
+  rm coverage-summary.json
+  if [ -e previous-coverage.json ]; then
+    echo "Running diff...."
+    node_modules/.bin/istanbul-diff previous-coverage.json current-coverage.json --detail
+    rm previous-coverage.json
+  fi
 else
   node_modules/.bin/truffle test "$@"
 fi

@@ -1,15 +1,20 @@
 /** global describe, it */
-const { assert } = require('chai');
-const async = require('async');
 
 const EloTest = artifacts.require('../contracts/EloTest.sol');
-const { Plan } = require('./utils.js');
 
-describe('ELO library', function() {
-  this.timeout(50000);
-  this.slow(500);
-  const player1 = web3.eth.accounts[0];
-  const player2 = web3.eth.accounts[1];
+const Web3 = require('web3');
+
+const provider = new Web3.providers.HttpProvider('http://localhost:7545');
+
+const web3 = new Web3(provider);
+
+const { assert } = require('chai');
+const async = require('async');
+const { Plan } = require('./helpers/utils');
+
+contract.skip('ELO library', function(accounts) {
+  const player1 = accounts[0];
+  const player2 = accounts[1];
   web3.eth.defaultAccount = player1;
 
   describe('Recording game result', function() {

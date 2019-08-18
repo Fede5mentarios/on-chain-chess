@@ -1,307 +1,20 @@
 /** global describe, it, beforeEach */
-const Chess = artifacts.require('../contracts/Chess.sol');
-
+const Chess = artifacts.require('../contracts/chess/Chess.sol');
+const Web3 = require('web3');
 const { assert } = require('chai');
-const { gameStateDisplay, Plan } = require('./utils');
+const { gameStateDisplay, Plan, emptyBoard, defaultBoard } = require('./helpers/utils');
+const { solSha3, getContracts } = require('./helpers/testHelper');
+const assertEvent = require('./helpers/assertHelper');
 
-const defaultBoard = [
-  -4,
-  -2,
-  -3,
-  -5,
-  -6,
-  -3,
-  -2,
-  -4,
-  0,
-  0,
-  0,
-  4,
-  0,
-  0,
-  0,
-  0,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  1,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  4,
-  2,
-  3,
-  5,
-  6,
-  3,
-  2,
-  4,
-  0,
-  0,
-  0,
-  116,
-  0,
-  0,
-  0,
-  0
-];
-const emptyBoard = [
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0
-];
+const provider = new Web3.providers.HttpProvider('http://localhost:7545');
 
-function leftPad(nr, n, str) {
-  return Array(n - String(nr).length + 1).join(str || '0') + nr;
-}
+const web3 = new Web3(provider);
 
-function solSha3(...args) {
-  const newArgs = args.map(arg => {
-    if (typeof arg === 'string') {
-      if (arg.substring(0, 2) === '0x') {
-        return arg.slice(2);
-      }
-      return web3.toHex(arg).slice(2);
-    }
-
-    if (typeof arg === 'number') {
-      if (arg < 0) {
-        return leftPad((arg >>> 0).toString(16), 64, 'F');
-      }
-      return leftPad(arg.toString(16), 64, 0);
-    }
-    return '';
-  });
-
-  return '0x' + web3.sha3(newArgs.join(''), { encoding: 'hex' });
-}
-
-function adjustPot(value) {
-  return value * 2; // for testing in testrpc
-}
-
-describe('Chess contract', function() {
-  this.timeout(60000);
-  this.slow(500);
-
+contract.skip('Chess contract', function(accounts) {
   const testGames = [];
-  const player1 = web3.eth.accounts[0];
-  const player2 = web3.eth.accounts[1];
-  const player3 = web3.eth.accounts[2];
+  const player1 = accounts[0];
+  const player2 = accounts[1];
+  const player3 = accounts[2];
 
   // Remove this for CI/deploy, otherwise the test never finishes
 
@@ -314,22 +27,23 @@ describe('Chess contract', function() {
   }); */
 
   // We create a few test games here that will later be accessed in testGames[]
-  describe('initGame()', function() {
-    it('should initialize a game with player1 playing white with 1M Wei', function(done) {
+  describe('FEATURE: initGame()', function() {
+    let chess;
+    beforeEach(async function() {
+      [chess] = await getContracts();
+      return chess;
+    });
+    it('RULE: should initialize a game with player1 playing white with 1M Wei', async function() {
       // Watch for event from contract to check if it worked
-      const filter = Chess.GameInitialized({});
-      filter.watch(function(error, result) {
-        testGames[0] = result.args.gameId;
-        assert.isOk(result.args.gameId);
-        assert.equal('Alice', result.args.player1Alias);
-        assert.equal(player1, result.args.player1);
-        assert.equal(player1, result.args.playerWhite);
-        assert.equal(10, result.args.turnTime);
-        filter.stopWatching(); // Need to remove filter again
-        done();
-      });
-
-      Chess.initGame('Alice', true, 10, { from: player1, gas: 2000000, value: 1000000 });
+      testGames[0] = await assertEvent.GameInitialize(
+        await chess.initGame('Alice', true, 10, { from: player1, gas: 2000000, value: 1000000 }),
+        {
+          player1Alias: 'Alice',
+          player1,
+          playerWhite: player1,
+          turnTime: 10
+        }
+      );
     });
 
     it('should broadcast the initial game state', function(done) {
