@@ -8,7 +8,8 @@ library ChessLogic {
 
 
   // default state array, all numbers offset by +8
-  bytes constant defaultState = '\x04\x06\x05\x03\x02\x05\x06\x04\x08\x08\x08\x0c\x08\x08\x08\x08\x07\x07\x07\x07\x07\x07\x07\x07\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x09\x09\x09\x09\x09\x09\x09\x09\x08\x08\x08\x08\x08\x08\x08\x08\x0c\x0a\x0b\x0d\x0e\x0b\x0a\x0c\x08\x08\x08\x7c\x08\x08\x08\x08';
+  // eslint-ignore
+  bytes constant defaultState ="\x04\x06\x05\x03\x02\x05\x06\x04\x08\x08\x08\x0c\x08\x08\x08\x08\x07\x07\x07\x07\x07\x07\x07\x07\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x09\x09\x09\x09\x09\x09\x09\x09\x08\x08\x08\x08\x08\x08\x08\x08\x0c\x0a\x0b\x0d\x0e\x0b\x0a\x0c\x08\x08\x08\x7c\x08\x08\x08\x08";
 
   /** Flags needed for validation
     * Usage e.g. Flags(Flag.FLAG_NAME), Directions(Direction.UP), Players(Player.WHITE)
@@ -117,7 +118,7 @@ library ChessLogic {
     setFlag(self, Flag.CURRENT_PLAYER, nextPlayerColor);
   }
 
-  function setState(State storage self, int8[128] newState, int8 nextPlayerColor) public {
+  function setState(State storage self, int8[128] memory newState, int8 nextPlayerColor) public {
     self.fields = newState;
     setFlag(self, Flag.CURRENT_PLAYER, nextPlayerColor);
   }
@@ -138,9 +139,7 @@ library ChessLogic {
     sanityCheck(fromIndex, toIndex, fromFigure, toFigure, currentPlayerColor);
 
     // Check if move is technically possible
-    if (!validateMove(self, fromIndex, toIndex, fromFigure, toFigure, currentPlayerColor)) {
-      throw;
-    }
+    require(validateMove(self, fromIndex, toIndex, fromFigure, toFigure, currentPlayerColor), "invalid move");
 
     // For all pieces except knight, check if way is free
     if (abs(fromFigure) != uint(Pieces(Piece.WHITE_KNIGHT))) {
@@ -149,9 +148,10 @@ library ChessLogic {
       checkWayFree(self, fromIndex, toIndex, currentPlayerColor, checkForCheck);
 
       // Check field between rook and king in case of castling
+      // TODO - simplify this logic
       if (fromFigure == Pieces(Piece.BLACK_KING) && toIndex == 2 && self.fields[1] != 0 ||
         fromFigure == Pieces(Piece.WHITE_KING) && toIndex == 114 && self.fields[113] != 0) {
-        throw;
+        revert("castling not possible");
       }
     }
     // Make the move
@@ -177,26 +177,18 @@ library ChessLogic {
   function sanityCheck(uint256 fromIndex, uint256 toIndex, int8 fromFigure, int8 toFigure, int8 currentPlayerColor) internal {
 
     // check that move is within the field
-    if (toIndex & 0x88 != 0 || fromIndex & 0x88 != 0) {
-      throw;
-    }
+    require(toIndex & 0x88 == 0 && fromIndex & 0x88 == 0, "move is not within the field");
 
     // check that from and to are distinct
-    if (fromIndex == toIndex) {
-      throw;
-    }
+    require(fromIndex != toIndex, "from and to are the same");
 
     // check if the toIndex is empty (= is 0) or contains an enemy figure ("positive" * "negative" = "negative")
-    // --> this only allows captures (negative results)  or moves to empty fields ( = 0)
-    if (fromFigure * toFigure > 0) {
-      throw;
-    }
+    // --> this only allows captures (negative results) or moves to empty fields ( = 0)
+    require(fromFigure * toFigure <= 0, "not an empty or enemy field");
 
     // check if mover of the figure is the owner of the figure
     // also check if there is a figure at fromIndex to move (fromFigure != 0)
-    if (currentPlayerColor * fromFigure <= 0) {
-      throw;
-    }
+    require(currentPlayerColor * fromFigure > 0, "there is not a figure to move or it is not yours");
   }
 
   /**
@@ -351,18 +343,12 @@ library ChessLogic {
 
     // as long as we do not reach the desired position walk in direction and check
     while (int(toIndex) != currentIndex) {
-      // we reached the end of the field
-      if (currentIndex & 0x88 != 0) {
-        throw;
-      }
-      // the path is blocked
-      if (self.fields[uint(currentIndex)] != 0) {
-        throw;
-      }
-      // Check for check in case of king
-      if (shouldCheckForCheck && checkForCheck(self, uint(currentIndex), currentPlayerColor)) {
-        throw;
-      }
+      require(currentIndex & 0x88 == 0, "End of field");
+
+      require(self.fields[uint(currentIndex)] == 0, "Path blocked");
+
+      require(!shouldCheckForCheck || !checkForCheck(self, uint(currentIndex), currentPlayerColor), "moving into check");
+
       currentIndex = currentIndex + direction;
     }
     return;
@@ -532,7 +518,7 @@ library ChessLogic {
     if (abs(fromFigure) == uint(Pieces(Piece.WHITE_PAWN))) {
     // En Passant - remove caught pawn
     // en passant if figure: pawn and diagonal move to empty field
-      if (is_diagonal(direction) && toFigure == Pieces(Piece.EMPTY)) {
+      if (isDiagonal(direction) && toFigure == Pieces(Piece.EMPTY)) {
         if (fromFigure == Pieces(Piece.BLACK_PAWN)) {
           self.fields[uint(int(toIndex) + Directions(Direction.UP))] = 0;
         } else {
@@ -575,20 +561,15 @@ library ChessLogic {
   ) internal returns (bool) {
     // Piece that was moved was the king
     if (abs(fromFigure) == uint(Pieces(Piece.WHITE_KING))) {
-      if (checkForCheck(self, uint(toIndex), movingPlayerColor)) {
-        throw;
-      }
+      require(!checkForCheck(self, uint(toIndex), movingPlayerColor), "moving into check");
       // Else we can skip the rest of the checks
-      return;
+      return true;
     }
 
     int8 kingIndex = getOwnKing(self, movingPlayerColor);
 
     // Moved other piece, but own king is still in check
-    if (checkForCheck(self, uint(kingIndex), movingPlayerColor)) {
-        throw;
-    }
-
+    require(!checkForCheck(self, uint(toIndex), movingPlayerColor), "unresolved check");
 
     // through move of fromFigure away from fromIndex,
     // king may now be in danger from that direction
@@ -605,10 +586,10 @@ library ChessLogic {
       if (firstFigure * movingPlayerColor < 0) {
         // check if the figure can move to the field of the king
         int8 kingFigure = Pieces(Piece.BLACK_KING) * movingPlayerColor;
-        if (validateMove(self, uint256(firstFigureIndex), uint256(kingIndex), firstFigure, kingFigure, movingPlayerColor)) {
-          // it can
-          throw;
-        }
+        require(
+          !validateMove(self, uint256(firstFigureIndex), uint256(kingIndex), firstFigure, kingFigure, movingPlayerColor),
+          "check" // ??
+        );
       }
     }
   }

@@ -115,7 +115,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     }
 
     // verify state - should be signed by the other member of game - not mover
-    if (!verifySig(opponent, sha3(state, gameId), sigState)) {
+    if (!verifySig(opponent, keccak256(state, gameId), sigState)) {
       throw;
     }
 
