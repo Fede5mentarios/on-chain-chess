@@ -3,7 +3,7 @@ pragma solidity 0.5.10;
 contract Auth {
   // Written by Alex Beregszaszi (@axic), use it under the terms of the MIT license.
   // slightly modified
-  function verifySig(address account, bytes32 hash, bytes sig) public returns (bool) {
+  function verifySig(address account, bytes32 hash, bytes memory sig) public view returns (bool) {
     bytes32 r;
     bytes32 s;
     uint8 v;
@@ -35,11 +35,11 @@ contract Auth {
   }
 
 
-  function getAddress(bytes32 hash, uint8 v, bytes32 r, bytes32 s) public view returns(address) {
+  function getAddress(bytes32 hash, uint8 v, bytes32 r, bytes32 s) public pure returns(address) {
     return ecrecover(hash, v, r, s);
   }
 
-  function verify(address account, bytes32 hash, uint8 v, bytes32 r, bytes32 s) public view returns(bool) {
+  function verify(address account, bytes32 hash, uint8 v, bytes32 r, bytes32 s) public pure returns(bool) {
     return account == getAddress(hash, v, r, s);
   }
 }

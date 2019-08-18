@@ -74,7 +74,7 @@ library ChessLogic {
   //                             [-33,-31,-18,-14,14, 18, 31, 33] shifted by +64
 
   function Flags(Flag i) internal view returns (uint) {
-    return uint(c_Flags[uint(i)]);
+    return uint(uint8(c_Flags[uint(i)]));
   }
 
   function Pieces(Piece i) internal view returns (int8) {
@@ -323,7 +323,7 @@ library ChessLogic {
     // Knights
     if (abs(fromFigure) == uint(Pieces(Piece.WHITE_KNIGHT))) {
       for (uint i; i < 8; i++) {
-        if (int(fromIndex) + int(knightMoves[i]) - 64 == int(toIndex)) {
+        if (int(fromIndex) + int(uint8(knightMoves[i])) - 64 == int(toIndex)) {
           return true;
         }
       }
@@ -354,7 +354,7 @@ library ChessLogic {
     return;
   }
 
-  function checkForCheck(State storage self, uint256 kingIndex, int8 currentPlayerColor) internal returns (bool) {
+  function checkForCheck(State storage self, uint256 kingIndex, int8 currentPlayerColor) internal view returns (bool) {
     // look in every direction whether there is an enemy figure that checks the king
     for (uint dir = 0; dir < 8; dir ++) {
       // get the first Figure in this direction. Threat of Knight does not change through move of fromFigure.
@@ -595,7 +595,7 @@ library ChessLogic {
   }
 
   // gets the first figure in direction from start, not including start
-  function getFirstFigure(State storage self, int8 direction, int8 start) public view returns (int8){
+  function getFirstFigure(State storage self, int8 direction, int8 start) internal view returns (int8){
     int currentIndex = start + direction;
 
     // as long as we do not reach the end of the board walk in direction

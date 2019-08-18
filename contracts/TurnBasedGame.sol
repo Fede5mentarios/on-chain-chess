@@ -49,7 +49,7 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
   mapping (address => bytes32) public gamesOfPlayersHeads;
 
 
-  constructor (bool _enableDebugging) public Debuggable(_enableDebugging) {
+  constructor(bool _enableDebugging) public Debuggable(_enableDebugging) {
     head = "end";
   }
 
