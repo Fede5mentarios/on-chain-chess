@@ -1,5 +1,7 @@
 pragma solidity 0.5.10;
 
+import "./Debuggable.sol";
+
 contract EventfulTurnBasedGame {
 
   event GameEnded(bytes32 indexed gameId);
@@ -11,14 +13,7 @@ contract EventfulTurnBasedGame {
   event DebugInts(string message, uint value1, uint value2, uint value3);
 }
 
-contract TurnBasedGame is EventfulTurnBasedGame {
-  bool debug; // If contract is deployed in debug mode, some debug features are enabled
-  modifier debugOnly {
-    if (!debug)
-        revert("break point reached");
-    _;
-  }
-
+contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
 
   struct Game {
     address player1;
@@ -53,29 +48,35 @@ contract TurnBasedGame is EventfulTurnBasedGame {
   mapping (address => mapping (bytes32 => bytes32)) public gamesOfPlayers;
   mapping (address => bytes32) public gamesOfPlayersHeads;
 
-  function getGamesOfPlayer(address player) public view returns (bytes32[]) {
-    var playerHead = gamesOfPlayersHeads[player];
-    var counter = 0;
+
+  constructor (bool _enableDebugging) public Debuggable(_enableDebugging) {
+    head = "end";
+  }
+
+  function getGamesOfPlayer(address player) public view returns (bytes32[] memory data) {
+    bytes32 playerHead = gamesOfPlayersHeads[player];
+    uint counter = 0;
     for (bytes32 ga = playerHead; ga != 0; ga = gamesOfPlayers[player][ga]) {
       counter++;
     }
-    bytes32[] memory data = new bytes32[](counter);
-    var currentGame = playerHead;
-    for (var i = 0; i < counter; i++) {
+    data = new bytes32[](counter);
+    bytes32 currentGame = playerHead;
+    for (uint i = 0; i < counter; i++) {
       data[i] = currentGame;
       currentGame = gamesOfPlayers[player][currentGame];
     }
     return data;
   }
 
-  function getOpenGameIds() public view returns (bytes32[]) {
-    var counter = 0;
+  function getOpenGameIds() public view returns (bytes32[] memory data) {
+    uint counter = 0;
     for (bytes32 ga = head; ga != "end"; ga = openGameIds[ga]) {
       counter++;
     }
-    bytes32[] memory data = new bytes32[](counter);
-    var currentGame = head;
-    for (var i = 0; i < counter; i++) {
+
+    data = new bytes32[](counter);
+    bytes32 currentGame = head;
+    for (uint i = 0; i < counter; i++) {
       data[i] = currentGame;
       currentGame = openGameIds[currentGame];
     }
@@ -84,17 +85,15 @@ contract TurnBasedGame is EventfulTurnBasedGame {
 
   // closes a game that is not currently running
   function closePlayerGame(bytes32 gameId) public {
-    var game = games[gameId];
+    Game storage game = games[gameId];
 
-    // game already started and not finished yet
-    if (!(game.player2 == 0 || game.ended))
-      throw;
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-      throw;
+    require((game.player2 == address(0) || game.ended), "game already started and not finished yet");
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+
     if (!game.ended)
       games[gameId].ended = true;
 
-    if (game.player2 == 0) {
+    if (game.player2 == address(0)) {
     // Remove from openGameIds
       if (head == gameId) {
         head = openGameIds[head];
@@ -128,17 +127,16 @@ contract TurnBasedGame is EventfulTurnBasedGame {
       }
     }
 
-    GameClosed(gameId, msg.sender);
+    emit GameClosed(gameId, msg.sender);
   }
 
   /**
   * Surrender = unilateral declaration of loss
   */
-  function surrender(bytes32 gameId) notEnded(gameId) public {
-    if (games[gameId].winner != 0) {
-      // Game already ended
-      throw;
-    }
+  function surrender(bytes32 gameId) public notEnded(gameId) {
+    // Game already ended
+    require(games[gameId].winner == address(0), "There is a winner already");
+
     if (games[gameId].player1 == msg.sender) {
       // Player 1 surrendered, player 2 won
       games[gameId].winner = games[gameId].player2;
@@ -151,11 +149,11 @@ contract TurnBasedGame is EventfulTurnBasedGame {
       games[gameId].pot = 0;
     } else {
       // Sender is not a participant of this game
-      throw;
+      revert("sender is not a player");
     }
 
     games[gameId].ended = true;
-    GameEnded(gameId);
+    emit GameEnded(gameId);
   }
 
   /**
@@ -167,36 +165,31 @@ contract TurnBasedGame is EventfulTurnBasedGame {
     if (games[gameId].player1 == msg.sender && games[gameId].player1Winnings > 0) {
       payout = games[gameId].player1Winnings;
       games[gameId].player1Winnings = 0;
-      if (!msg.sender.send(payout)) {
-        throw;
-      }
+      msg.sender.transfer(payout);
     } else if (games[gameId].player2 == msg.sender && games[gameId].player2Winnings > 0) {
       payout = games[gameId].player2Winnings;
       games[gameId].player2Winnings = 0;
-      if (!msg.sender.send(payout)) {
-        throw;
-      }
+      msg.sender.transfer(payout);
     }
     else {
-      throw;
+      revert("sender is not a player or not the winner");
     }
   }
 
-  function isGameEnded(bytes32 gameId) public constant returns (bool) {
+  function isGameEnded(bytes32 gameId) public view returns (bool) {
     return games[gameId].ended;
   }
 
   modifier notEnded(bytes32 gameId) {
-    if (games[gameId].ended) throw;
+    require(!games[gameId].ended, "The game already ended");
     _;
   }
 
-  function initGame(string player1Alias, bool playAsWhite, uint turnTime) public returns (bytes32) {
-    if (turnTime < 5)
-        throw;
+  function initGame(string memory player1Alias, bool playAsWhite, uint turnTime) public payable returns (bytes32) {
+    require(turnTime >= 5, "the turn time should be greater or equals to 5");
 
     // Generate game id based on player"s addresses and current block number
-    bytes32 gameId = sha3(msg.sender, block.number);
+    bytes32 gameId = keccak256(abi.encodePacked(msg.sender, block.number));
 
     games[gameId].ended = false;
     games[gameId].turnTime = turnTime;
@@ -227,16 +220,12 @@ contract TurnBasedGame is EventfulTurnBasedGame {
     * bytes32 gameId: ID of the game to join
     * string player2Alias: Alias of the player that is joining
     */
-  function joinGame(bytes32 gameId, string player2Alias) public {
+  function joinGame(bytes32 gameId, string memory player2Alias) public payable {
     // Check that this game does not have a second player yet
-    if (games[gameId].player2 != 0) {
-        throw;
-    }
-
+    require(games[gameId].player2 == address(0), "player 2 already in game");
     // throw if the second player did not match the bet.
-    if (msg.value != games[gameId].pot) {
-      throw;
-    }
+    require(msg.value == games[gameId].pot, "player 2 did not match the bet");
+
     games[gameId].pot += msg.value;
 
     games[gameId].player2 = msg.sender;
@@ -262,35 +251,39 @@ contract TurnBasedGame is EventfulTurnBasedGame {
   }
 
   /* The sender claims he has won the game. Starts a timeout. */
-  function claimWin(bytes32 gameId) notEnded(gameId) public {
-    var game = games[gameId];
+  function claimWin(bytes32 gameId) public notEnded(gameId) {
+    Game storage game = games[gameId];
     // just the two players currently playing
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-        throw;
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+
     // only if timeout has not started
-    if (game.timeoutState != 0)
-        throw;
+    require(game.timeoutState == 0, "Timeout already running");
+
     // you can only claim draw / victory in the enemies turn
-    if (msg.sender == game.nextPlayer)
-        throw;
+    require(msg.sender != game.nextPlayer, "You can only claim draw / victory in the enemies turn");
 
     game.timeoutStarted = now;
     game.timeoutState = 1;
-    GameTimeoutStarted(gameId, game.timeoutStarted, game.timeoutState);
+    emit GameTimeoutStarted(gameId, game.timeoutStarted, game.timeoutState);
   }
 
   /* The sender offers the other player a draw. Starts a timeout. */
-  function offerDraw(bytes32 gameId) notEnded(gameId) public {
-    var game = games[gameId];
+  function offerDraw(bytes32 gameId) public notEnded(gameId) {
+    Game storage game = games[gameId];
     // just the two players currently playing
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-      throw;
-    // only if timeout has not started or is a draw by nextPlayer
-    if (game.timeoutState != 0 && game.timeoutState != 2)
-      throw;
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+
+    // only if timeout has not started
+    require(game.timeoutState == 0, "Timeout already running");
+
+    // only if timeout has not started
+    require(game.timeoutState == 0 || game.timeoutState == 2, "Timeout already running or is a draw by nextPlayer");
+
     // if state = timeout, timeout has to be 2*timeoutTime
-    if (game.timeoutState == 2 && now < game.timeoutStarted + 2 * game.turnTime * 1 minutes)
-      throw;
+    require(
+      game.timeoutState != 2 || now >= game.timeoutStarted + 2 * game.turnTime * 1 minutes,
+      "Thetimeout should be declared reached or twice exceeded"
+    );
 
     if (msg.sender == game.nextPlayer) {
       game.timeoutState = -2;
@@ -298,75 +291,70 @@ contract TurnBasedGame is EventfulTurnBasedGame {
       game.timeoutState = -1;
     }
     game.timeoutStarted = now;
-    GameTimeoutStarted(gameId, game.timeoutStarted, game.timeoutState);
+    emit GameTimeoutStarted(gameId, game.timeoutStarted, game.timeoutState);
   }
 
   /*
     * The sender claims that the other player is not in the game anymore.
     * Starts a Timeout that can be claimed
     */
-  function claimTimeout(bytes32 gameId) notEnded(gameId) public {
-    var game = games[gameId];
-    // just the two players currently playing
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-      throw;
-    // only if timeout has not started
-    if (game.timeoutState != 0)
-      throw;
-    // you can only claim draw / victory in the enemies turn
-    if (msg.sender == game.nextPlayer)
-      throw;
+  function claimTimeout(bytes32 gameId) public notEnded(gameId) {
+    Game storage game = games[gameId];
+
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+
+    require(game.timeoutState == 0, "Timeout already started");
+
+    require(msg.sender != game.nextPlayer, "You can only claim draw / victory in the enemies turn");
+
     game.timeoutStarted = now;
     game.timeoutState = 2;
-    GameTimeoutStarted(gameId, game.timeoutStarted, game.timeoutState);
+    emit GameTimeoutStarted(gameId, game.timeoutStarted, game.timeoutState);
   }
 
   /*
     * The sender (waiting player) rejects the draw offered by the
     * other (turning / current) player.
     */
-  function rejectCurrentPlayerDraw(bytes32 gameId) notEnded(gameId) public {
-    var game = games[gameId];
-    // just the two players currently playing
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-      throw;
-    // only if timeout is present
-    if (game.timeoutState != -2)
-      throw;
-    // only not playing player is able to reject a draw offer of the nextPlayer
-    if (msg.sender == game.nextPlayer)
-      throw;
+  function rejectCurrentPlayerDraw(bytes32 gameId) public notEnded(gameId) {
+    Game storage game = games[gameId];
+
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+
+    require(game.timeoutState == 2, "Timeout has not started");
+
+    require(msg.sender != game.nextPlayer, "only not playing player is able to reject a draw offer of the nextPlayer");
+
     game.timeoutState = 0;
-    GameDrawOfferRejected(gameId);
+    emit GameDrawOfferRejected(gameId);
   }
 
   /* The sender claims a previously started timeout. */
-  function claimTimeoutEnded(bytes32 gameId) notEnded(gameId) public {
-    var game = games[gameId];
-    // just the two players currently playing
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-        throw;
-    if (game.timeoutState == 0 || game.timeoutState == 2)
-        throw;
-    if (now < game.timeoutStarted + game.turnTime * 1 minutes)
-        throw;
+  function claimTimeoutEnded(bytes32 gameId) public notEnded(gameId) {
+    Game storage game = games[gameId];
+
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+
+    require(game.timeoutState != 0 && game.timeoutState != 2, "Timeout still running");
+
+    require(now >= game.timeoutStarted + game.turnTime * 1 minutes, "timeout has not been reached");
+
     if (msg.sender == game.nextPlayer) {
-      if (game.timeoutState == -2) { // draw
-        game.ended = true;
-        games[gameId].player1Winnings = games[gameId].pot / 2;
-        games[gameId].player2Winnings = games[gameId].pot / 2;
-        games[gameId].pot = 0;
-        GameEnded(gameId);
-      } else {
-        throw;
-      }
+      require(game.timeoutState == -2, "The draw is not for the next player to claim");
+      game.ended = true;
+      games[gameId].player1Winnings = games[gameId].pot / 2;
+      games[gameId].player2Winnings = games[gameId].pot / 2;
+      games[gameId].pot = 0;
+      emit GameEnded(gameId);
+
     } else {
+
       if (game.timeoutState == -1) { // draw
         game.ended = true;
         games[gameId].player1Winnings = games[gameId].pot / 2;
         games[gameId].player2Winnings = games[gameId].pot / 2;
         games[gameId].pot = 0;
-        GameEnded(gameId);
+        emit GameEnded(gameId);
       } else if (game.timeoutState == 1){ // win
         game.ended = true;
         game.winner = msg.sender;
@@ -377,58 +365,45 @@ contract TurnBasedGame is EventfulTurnBasedGame {
           games[gameId].player2Winnings = games[gameId].pot;
           games[gameId].pot = 0;
         }
-        GameEnded(gameId);
+        emit GameEnded(gameId);
       } else {
-        throw;
+        revert("Game still in progress");
       }
     }
   }
 
   /* A timeout can be confirmed by the non-initializing player. */
-  function confirmGameEnded(bytes32 gameId) notEnded(gameId) public {
-    var game = games[gameId];
+  function confirmGameEnded(bytes32 gameId) public notEnded(gameId) {
+    Game storage game = games[gameId];
     // just the two players currently playing
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-      throw;
-    if (game.timeoutState == 0)
-      throw;
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+
+    require(game.timeoutState != 0, "Timeout running");
+
+    games[gameId].pot = 0;
+    game.ended = true;
     if (msg.sender != game.nextPlayer) {
-      if (game.timeoutState == -2) { // draw
-        game.ended = true;
-        games[gameId].player1Winnings = games[gameId].pot / 2;
-        games[gameId].player2Winnings = games[gameId].pot / 2;
-        games[gameId].pot = 0;
-        GameEnded(gameId);
-      } else {
-        throw;
-      }
+      require(game.timeoutState == -2, "The draw is not for the next player to claim");
+      games[gameId].player1Winnings = games[gameId].pot / 2;
+      games[gameId].player2Winnings = games[gameId].pot / 2;
+      emit GameEnded(gameId);
     } else {
       if (game.timeoutState == -1) { // draw
-        game.ended = true;
         games[gameId].player1Winnings = games[gameId].pot / 2;
         games[gameId].player2Winnings = games[gameId].pot / 2;
-        games[gameId].pot = 0;
-        GameEnded(gameId);
+        emit GameEnded(gameId);
       } else if (game.timeoutState == 1 || game.timeoutState == 2) { // win
-        game.ended = true;
         if (msg.sender == game.player1) {
           game.winner = game.player2;
           games[gameId].player2Winnings = games[gameId].pot;
-          games[gameId].pot = 0;
         } else {
           game.winner = game.player1;
           games[gameId].player1Winnings = games[gameId].pot;
-          games[gameId].pot = 0;
         }
-        GameEnded(gameId);
+        emit GameEnded(gameId);
       } else {
-        throw;
+        revert("Game still in progress");
       }
     }
-  }
-
-  function TurnBasedGame(bool enableDebugging) {
-    debug = enableDebugging;
-    head = "end";
   }
 }
