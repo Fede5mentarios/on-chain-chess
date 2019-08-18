@@ -65,6 +65,7 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
       data[i] = currentGame;
       currentGame = gamesOfPlayers[player][currentGame];
     }
+
     return data;
   }
 
@@ -80,15 +81,15 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
       data[i] = currentGame;
       currentGame = openGameIds[currentGame];
     }
+
     return data;
   }
 
   // closes a game that is not currently running
-  function closePlayerGame(bytes32 gameId) public {
+  function closePlayerGame(bytes32 gameId) public isAPlayer(gameId, msg.sender) {
     Game storage game = games[gameId];
 
     require((game.player2 == address(0) || game.ended), "game already started and not finished yet");
-    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
 
     if (!game.ended)
       games[gameId].ended = true;
@@ -107,6 +108,7 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
           }
         }
       }
+
       games[gameId].player1Winnings = games[gameId].pot;
       games[gameId].pot = 0;
     }
@@ -180,11 +182,6 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
     return games[gameId].ended;
   }
 
-  modifier notEnded(bytes32 gameId) {
-    require(!games[gameId].ended, "The game already ended");
-    _;
-  }
-
   function initGame(string memory player1Alias, bool playAsWhite, uint turnTime) public payable returns (bytes32) {
     require(turnTime >= 5, "the turn time should be greater or equals to 5");
 
@@ -251,11 +248,8 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
   }
 
   /* The sender claims he has won the game. Starts a timeout. */
-  function claimWin(bytes32 gameId) public notEnded(gameId) {
+  function claimWin(bytes32 gameId) public notEnded(gameId) isAPlayer(gameId, msg.sender) {
     Game storage game = games[gameId];
-    // just the two players currently playing
-    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
-
     // only if timeout has not started
     require(game.timeoutState == 0, "Timeout already running");
 
@@ -268,10 +262,8 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
   }
 
   /* The sender offers the other player a draw. Starts a timeout. */
-  function offerDraw(bytes32 gameId) public notEnded(gameId) {
+  function offerDraw(bytes32 gameId) public notEnded(gameId) isAPlayer(gameId, msg.sender) {
     Game storage game = games[gameId];
-    // just the two players currently playing
-    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
 
     // only if timeout has not started
     require(game.timeoutState == 0, "Timeout already running");
@@ -298,10 +290,8 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
     * The sender claims that the other player is not in the game anymore.
     * Starts a Timeout that can be claimed
     */
-  function claimTimeout(bytes32 gameId) public notEnded(gameId) {
+  function claimTimeout(bytes32 gameId) public notEnded(gameId) isAPlayer(gameId, msg.sender) {
     Game storage game = games[gameId];
-
-    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
 
     require(game.timeoutState == 0, "Timeout already started");
 
@@ -316,10 +306,8 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
     * The sender (waiting player) rejects the draw offered by the
     * other (turning / current) player.
     */
-  function rejectCurrentPlayerDraw(bytes32 gameId) public notEnded(gameId) {
+  function rejectCurrentPlayerDraw(bytes32 gameId) public notEnded(gameId) isAPlayer(gameId, msg.sender) {
     Game storage game = games[gameId];
-
-    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
 
     require(game.timeoutState == 2, "Timeout has not started");
 
@@ -330,10 +318,8 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
   }
 
   /* The sender claims a previously started timeout. */
-  function claimTimeoutEnded(bytes32 gameId) public notEnded(gameId) {
+  function claimTimeoutEnded(bytes32 gameId) public notEnded(gameId) isAPlayer(gameId, msg.sender) {
     Game storage game = games[gameId];
-
-    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
 
     require(game.timeoutState != 0 && game.timeoutState != 2, "Timeout still running");
 
@@ -373,10 +359,9 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
   }
 
   /* A timeout can be confirmed by the non-initializing player. */
-  function confirmGameEnded(bytes32 gameId) public notEnded(gameId) {
+  function confirmGameEnded(bytes32 gameId) public notEnded(gameId) isAPlayer(gameId, msg.sender) {
     Game storage game = games[gameId];
     // just the two players currently playing
-    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
 
     require(game.timeoutState != 0, "Timeout running");
 
@@ -405,5 +390,16 @@ contract TurnBasedGame is EventfulTurnBasedGame, Debuggable {
         revert("Game still in progress");
       }
     }
+  }
+
+  modifier isAPlayer(bytes32 _gameId, address _sender) {
+    Game storage game = games[_gameId];
+    require(msg.sender == game.player1 || msg.sender == game.player2, "sender is not a player");
+    _;
+  }
+
+  modifier notEnded(bytes32 gameId) {
+    require(!games[gameId].ended, "The game already ended");
+    _;
   }
 }

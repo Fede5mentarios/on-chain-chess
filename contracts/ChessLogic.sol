@@ -8,7 +8,7 @@ library ChessLogic {
 
 
   // default state array, all numbers offset by +8
-  // eslint-ignore
+  // solium-disable-next-line security/no-throw, max-len
   bytes constant defaultState ="\x04\x06\x05\x03\x02\x05\x06\x04\x08\x08\x08\x0c\x08\x08\x08\x08\x07\x07\x07\x07\x07\x07\x07\x07\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x09\x09\x09\x09\x09\x09\x09\x09\x08\x08\x08\x08\x08\x08\x08\x08\x0c\x0a\x0b\x0d\x0e\x0b\x0a\x0c\x08\x08\x08\x7c\x08\x08\x08\x08";
 
   /** Flags needed for validation
@@ -380,9 +380,9 @@ library ChessLogic {
 
     //Knights
     // Knights can jump over figures. So they need to be tested seperately with every possible move.
-    for (uint move = 0; move < 8; move ++){
+    for (uint movement = 0; movement < 8; movement ++){
       // currentMoveIndex: where knight could start with move that checks king
-      int8 currentMoveIndex = int8(kingIndex) + int8(knightMoves[move]) - 64;
+      int8 currentMoveIndex = int8(kingIndex) + int8(knightMoves[movement]) - 64;
 
       // if inside the board
       if (uint(currentMoveIndex) & 0x88 == 0){

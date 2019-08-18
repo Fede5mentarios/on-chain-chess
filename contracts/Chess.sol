@@ -37,11 +37,15 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
   using ELO for ELO.Scores;
   ELO.Scores eloScores;
 
-  function getEloScore(address player) public view returns(uint) {
-    return eloScores.getScore(player);
+  constructor(bool enableDebugging) TurnBasedGame(enableDebugging) public {}
+
+  /* This unnamed function is called whenever someone tries to send ether to the contract */
+  function () public {
+    revert(); // Prevents accidental sending of ether
   }
 
-  function Chess(bool enableDebugging) TurnBasedGame(enableDebugging) {
+  function getEloScore(address player) public view returns(uint) {
+    return eloScores.getScore(player);
   }
 
   /**
@@ -56,11 +60,11 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     int8 nextPlayerColor = int8(1);
     gameStates[gameId].setupState(nextPlayerColor);
     if (playAsWhite) {
-        // Player 1 will play as white
-        gameStates[gameId].playerWhite = msg.sender;
+      // Player 1 will play as white
+      gameStates[gameId].playerWhite = msg.sender;
 
-        // Game starts with White, so here player 1
-        games[gameId].nextPlayer = games[gameId].player1;
+      // Game starts with White, so here player 1
+      games[gameId].nextPlayer = games[gameId].player1;
     }
 
     // Sent notification events
@@ -101,51 +105,49 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     * verify signature of move
     * apply state, verify move
     */
-  function moveFromState(bytes32 gameId, int8[128] state, uint256 fromIndex, uint256 toIndex, bytes sigState) notEnded(gameId) public {
-    // check whether sender is a member of this game
-    if (games[gameId].player1 != msg.sender && games[gameId].player2 != msg.sender) {
-      throw;
-    }
-    // find opponent to msg.sender
-    address opponent;
-    if (msg.sender == games[gameId].player1) {
-      opponent = games[gameId].player2;
-    } else {
-      opponent = games[gameId].player1;
-    }
+  function moveFromState(bytes32 gameId, int8[128] state, uint256 fromIndex, uint256 toIndex, bytes sigState)
+    public notEnded(gameId) isAPlayer(gameId, msg.sender) {
+
+    Game storage game = games[gameId];
+
+    address opponent = findOpponent(game, msg.sender);
 
     // verify state - should be signed by the other member of game - not mover
-    if (!verifySig(opponent, keccak256(state, gameId), sigState)) {
-      throw;
-    }
+    require(
+      verifySig(opponent, keccak256(state, gameId), sigState),
+      "should be signed by the other member of game - not mover"
+    );
 
     // check move count. New state should have a higher move count.
-    if ((state[8] * int8(128) + state[9]) < (gameStates[gameId].fields[8] * int8(128) + gameStates[gameId].fields[9])) {
-      throw;
-    }
+    require(
+      (state[8] * int8(128) + state[9]) < (gameStates[gameId].fields[8] * int8(128) + gameStates[gameId].fields[9]),
+      "New state should have a higher move count"
+    );
 
     int8 playerColor = msg.sender == gameStates[gameId].playerWhite ? int8(1) : int8(-1);
 
     // apply state
     gameStates[gameId].setState(state, playerColor);
-    games[gameId].nextPlayer =  msg.sender;
+    game.nextPlayer = msg.sender;
 
     // apply and verify move
-    move(gameId, fromIndex, toIndex);
+    move(gameId, msg.sender, fromIndex, toIndex);
   }
 
-  function move(bytes32 gameId, uint256 fromIndex, uint256 toIndex) notEnded(gameId) public {
-    if (games[gameId].timeoutState == 2 &&
+  function move(Game storage _game, address _sender, uint256 fromIndex, uint256 toIndex) internal {
+    if (
+      games[gameId].timeoutState == 2 &&
       now >= games[gameId].timeoutStarted + games[gameId].turnTime * 1 minutes &&
-      msg.sender != games[gameId].nextPlayer) {
+      msg.sender != games[gameId].nextPlayer
+    ) {
       // Just a fake move to determine if there is a possible move left for timeout
 
       // Chess move validation
       gameStates[gameId].move(fromIndex, toIndex, msg.sender != gameStates[gameId].playerWhite);
     } else {
-      if (games[gameId].nextPlayer != msg.sender) {
-        throw;
-      }
+
+      require(games[gameId].nextPlayer == _sender, "It is not your turn");
+
       if (games[gameId].timeoutState != 0) {
         games[gameId].timeoutState = 0;
       }
@@ -167,7 +169,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
   }
 
   /* Explicit set game state. Only in debug mode */
-  function setGameState(bytes32 gameId, int8[128] state, address nextPlayer) debugOnly public {
+  function setGameState(bytes32 gameId, int8[128] state, address nextPlayer) public debugOnly {
     int8 playerColor = nextPlayer == gameStates[gameId].playerWhite ? int8(1) : int8(-1);
     gameStates[gameId].setState(state, playerColor);
     games[gameId].nextPlayer = nextPlayer;
@@ -203,9 +205,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     uint256 kingIndex = uint256(gameStates[gameId].getOwnKing(otherPlayerColor));
 
     // if he is not in check, the request is illegal
-    if (!gameStates[gameId].checkForCheck(kingIndex, otherPlayerColor)){
-      throw;
-    }
+    require(gameStates[gameId].checkForCheck(kingIndex, otherPlayerColor), "Not a check");
   }
 
   /**
@@ -213,17 +213,15 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     * player timed out and has to provide a move, the other player could
     * have done to prevent the timeout.
     */
-  function claimTimeoutEndedWithMove(bytes32 gameId, uint256 fromIndex, uint256 toIndex) public notEnded(gameId) {
-    var game = games[gameId];
-    // just the two players currently playing
-    if (msg.sender != game.player1 && msg.sender != game.player2)
-      throw;
-    if (now < game.timeoutStarted + game.turnTime * 1 minutes)
-      throw;
-    if (msg.sender == game.nextPlayer)
-      throw;
-    if (game.timeoutState != 2)
-      throw;
+  function claimTimeoutEndedWithMove(bytes32 gameId, uint256 fromIndex, uint256 toIndex)
+    public notEnded(gameId) isAPlayer(gameId, msg.sender) {
+    Game storage game = games[gameId];
+
+    require(now >= game.timeoutStarted + game.turnTime * 1 minutes, "timeout has not been reached");
+
+    require(game.nextPlayer == msg.sender, "It is not your turn");
+
+    require(game.timeoutState == 2, "Timeout do not declared");
 
     // TODO we need other move function
     // move is valid if it does not throw
@@ -247,7 +245,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
   }
 
   /* The sender claims a previously started timeout. */
-  function claimTimeoutEnded(bytes32 gameId) notEnded(gameId) public {
+  function claimTimeoutEnded(bytes32 gameId) public notEnded(gameId) {
     super.claimTimeoutEnded(gameId);
 
     // Update ELO scores
@@ -258,7 +256,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
   }
 
   /* A timeout can be confirmed by the non-initializing player. */
-  function confirmGameEnded(bytes32 gameId) notEnded(gameId) public {
+  function confirmGameEnded(bytes32 gameId) public notEnded(gameId)  {
     super.confirmGameEnded(gameId);
 
     // Update ELO scores
@@ -268,8 +266,7 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     emit EloScoreUpdate(game.player2, eloScores.getScore(game.player2));
   }
 
-  /* This unnamed function is called whenever someone tries to send ether to the contract */
-  function () public {
-    throw; // Prevents accidental sending of ether
+  function findOpponent(Game storage _game, address _sender) public view returns(address opponent) {
+    return _sender == _game.player1 ? _game.player2 : _game.player1;
   }
 }
