@@ -1,15 +1,14 @@
 pragma solidity 0.5.10;
 
+import "./libs/MathUtils.sol";
 /**
  * Simple ELO score rating system based on
  * https://en.wikipedia.org/wiki/Elo_rating_system#Mathematical_details
  */
 library ELO {
-  struct Score {
-    uint score;
-  }
+
   struct Scores {
-    mapping(address => Score) scores;
+    mapping(address => uint) scores;
   }
 
   /**
@@ -25,13 +24,12 @@ library ELO {
     int resultA = 1; // 0 = lose, 1 = draw, 2 = win
     if (winner == player1) {
       resultA = 2;
-    }
-    else if (winner == player2) {
+    } else if (winner == player2) {
       resultA = 0;
     }
 
     // Calculate new score
-    (int changeA, int changeB) = getScoreChange(int(scoreA)-int(scoreB), resultA);
+    (int changeA, int changeB) = getScoreChange(int(scoreA) - int(scoreB), resultA);
     setScore(self, player1, uint(int(scoreA) + changeA));
     setScore(self, player2, uint(int(scoreB) + changeB));
   }
@@ -47,7 +45,7 @@ library ELO {
     */
   function getScoreChange(int difference, int resultA) public pure returns (int, int) {
     bool reverse = (difference > 0); // note if difference was positive
-    uint diff = abs(difference); // take absolute to lookup in positive table
+    uint diff = MathUtils.abs(difference); // take absolute to lookup in positive table
     // Score change lookup table
     int scoreChange = 10;
     if (diff > 636) scoreChange = 20;
@@ -68,33 +66,28 @@ library ELO {
       return ((reverse ? 10-scoreChange : scoreChange-10 ), (reverse ? -(10-scoreChange) : -(scoreChange-10)));
     }
     else {
-      return ((reverse ? scoreChange-20 : -scoreChange ), (reverse ? scoreChange : -(scoreChange-20)));
+      return ((reverse ? scoreChange - 20 : -scoreChange ), (reverse ? scoreChange : -(scoreChange-20)));
     }
-  }
-
-  function abs(int value) public pure returns (uint){
-    if (value>=0) return uint(value);
-    else return uint(-1*value);
   }
 
   /**
     * Get current score for player
     */
   function getScore(Scores storage self, address player) public view returns (uint) {
-    if (self.scores[player].score <= 100) {
+    if (self.scores[player] <= 100) {
       return 100;
     }
-    return self.scores[player].score;
+    return self.scores[player];
   }
 
   /**
     * Set score for player
     */
-  function setScore(Scores storage self, address player, uint score) public {
-    if (score <= 100) {
-      self.scores[player].score = 100;
+  function setScore(Scores storage self, address _player, uint _score) public {
+    if (_score <= 100) {
+      self.scores[_player] = 100;
     } else {
-      self.scores[player].score = score;
+      self.scores[_player] = _score;
     }
   }
 }

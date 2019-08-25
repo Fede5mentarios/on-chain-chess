@@ -1,9 +1,9 @@
 /** global describe, it, beforeEach */
-const { defaultBoard } = require('./helpers/utils');
-const { getContracts } = require('./helpers/testHelper');
-const assertEvent = require('./helpers/assertHelper');
+const { defaultBoard } = require('../helpers/utils');
+const { getContracts } = require('../helpers/testHelper');
+const assertEvent = require('../helpers/assertHelper');
 
-contract.skip('Chess contract: ', function(accounts) {
+contract.skip('Chess: ', function(accounts) {
   const player1 = accounts[1];
   const testGames = [];
   describe('FEATURE: initGame()', function() {

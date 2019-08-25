@@ -1,5 +1,6 @@
 const Chess = artifacts.require('../../contracts/chess/Chess.sol');
 const TurnBasedGame = artifacts.require('../../contracts/TurnBasedGame.sol');
+const EloTest = artifacts.require('../../contracts/EloTest.sol');
 
 const CONSTANTS = {
   b32EMPTY: '0x0000000000000000000000000000000000000000000000000000000000000000',
@@ -30,7 +31,8 @@ const solSha3 = (...args) => {
 
 const leftPad = (nr, n, str) => Array(n - String(nr).length + 1).join(str || '0') + nr;
 
-const getContracts = async () => Promise.all([Chess.new(true), TurnBasedGame.new(true)]);
+const getContracts = async () =>
+  Promise.all([Chess.new(true), TurnBasedGame.new(true), EloTest.new()]);
 
 module.exports = {
   CONSTANTS,

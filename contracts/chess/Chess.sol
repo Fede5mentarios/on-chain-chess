@@ -53,8 +53,8 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
   constructor(bool enableDebugging) TurnBasedGame(enableDebugging) public {}
 
   /* This unnamed function is called whenever someone tries to send ether to the contract */
-  function () external {
-    revert(); // Prevents accidental sending of ether
+  function () external payable {
+    revert("Not a payable address"); // Prevents accidental sending of ether
   }
 
   /**
@@ -62,22 +62,26 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     * string player1Alias: Alias of the player creating the game
     * bool playAsWhite: Pass true or false depending on if the creator will play as white
     */
-  function initGame(string memory player1Alias, bool playAsWhite, uint turnTime) public payable returns (bytes32 gameId) {
-    gameId = super.initGame(player1Alias, turnTime, playAsWhite);
+  function initGame(string memory _player1Alias, uint _turnTime, bool _playAsWhite) public payable returns (bytes32 gameId) {
+    gameId = super.initGame(_player1Alias, _turnTime, _playAsWhite);
 
     // Setup game state
     int8 nextPlayerColor = int8(1);
     gameStates[gameId].setupState(nextPlayerColor);
-    if (playAsWhite) {
+    if (_playAsWhite) {
       // Player 1 will play as white
       gameStates[gameId].playerWhite = msg.sender;
-
-      // Game starts with White, so here player 1
-      games[gameId].nextPlayer = games[gameId].player1;
     }
 
     // Sent notification events
-    emit GameInitialized(gameId, games[gameId].player1, player1Alias, gameStates[gameId].playerWhite, games[gameId].turnTime, games[gameId].pot);
+    emit GameInitialized(
+      gameId,
+      games[gameId].player1,
+      _player1Alias,
+      gameStates[gameId].playerWhite,
+      games[gameId].turnTime,
+      games[gameId].pot
+    );
     emit GameStateChanged(gameId, gameStates[gameId].fields);
     return gameId;
   }
@@ -87,28 +91,25 @@ contract Chess is Auth, EventfulChess, TurnBasedGame {
     * bytes32 _gameId: ID of the game to join
     * string player2Alias: Alias of the player that is joining
     */
-  function joinGame(bytes32 _gameId, string memory player2Alias) public payable {
-    super.joinGame(_gameId, player2Alias);
+  function joinGame(bytes32 _gameId, string memory _player2Alias) public payable {
+    super.joinGame(_gameId, _player2Alias);
     ChessState.Data storage gameState = gameStates[_gameId];
     Game storage game = games[_gameId];
 
     // If the other player isn't white, player2 will play as white
-    if (gameState.playerWhite == address(0)) {
-      gameState.playerWhite = msg.sender;
-      // Game starts with White, so here player2
-      game.nextPlayer = game.player2;
-    }
+    gameState.playerWhite = game.nextPlayer;
 
     emit GameJoined(
       _gameId,
       game.player1,
       game.player1Alias,
       game.player2,
-      player2Alias,
+      _player2Alias,
       gameState.playerWhite,
       game.pot
     );
   }
+
   /* Explicit set game state. Only in debug mode */
   function setGameState(bytes32 _gameId, int8[128] memory state, address nextPlayer) public debugOnly {
     int8 playerColor = nextPlayer == gameStates[_gameId].playerWhite ? int8(1) : int8(-1);
